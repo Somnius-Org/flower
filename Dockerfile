@@ -1,4 +1,4 @@
-FROM python:alpine
+FROM --platform=linux/amd64 python:3.10-alpine
 
 # Get latest root certificates
 RUN apk add --no-cache ca-certificates tzdata && update-ca-certificates
@@ -29,4 +29,4 @@ USER flower
 
 VOLUME $FLOWER_DATA_DIR
 
-CMD ["celery", "flower"]
+# CMD ["celery", "flower"]
