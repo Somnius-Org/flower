@@ -1,0 +1,7 @@
+.dockerignore
+.github
+.git
+.DS_Store
+docs
+examples
+tests
