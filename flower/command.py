@@ -19,16 +19,14 @@ from .urls import settings
 from .utils import abs_path, prepend_url, strtobool
 from .options import DEFAULT_CONFIG_FILE, default_options
 from .views.auth import validate_auth_option
+from .utils.common import read
 
 logger = logging.getLogger(__name__)
 ENV_VAR_PREFIX = 'FLOWER_'
 
 
-@click.command(cls=CeleryCommand,
-               context_settings={
-                   'ignore_unknown_options': True
-               })
-@click.argument("tornado_argv", nargs=-1, type=click.UNPROCESSED)
+@click.command(cls=CeleryCommand, context_settings={'ignore_unknown_options': True})
+@click.argument('tornado_argv', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def flower(ctx, tornado_argv):
     """Web based tool for monitoring and administrating Celery clusters."""
@@ -57,7 +55,7 @@ def flower(ctx, tornado_argv):
 
 
 def apply_env_options():
-    "apply options passed through environment variables"
+    """apply options passed through environment variables"""
     env_options = filter(is_flower_envvar, os.environ)
     for env_var_name in env_options:
         name = env_var_name.replace(ENV_VAR_PREFIX, '', 1).lower()
@@ -78,7 +76,7 @@ def apply_env_options():
 
 
 def apply_options(prog_name, argv):
-    "apply options passed through the configuration file"
+    """apply options passed through the configuration file"""
     argv = list(filter(is_flower_option, argv))
     # parse the command line to get --conf option
     parse_command_line([prog_name] + argv)
@@ -95,7 +93,7 @@ def warn_about_celery_args_used_in_flower_command(ctx, flower_args):
 
     incorrectly_used_args = []
     for arg in flower_args:
-        arg_name, _, _ = arg.partition("=")
+        arg_name, _, _ = arg.partition('=')
         if arg_name in celery_options:
             incorrectly_used_args.append(arg_name)
 
@@ -113,8 +111,8 @@ def setup_logging():
         options.logging = 'debug'
         enable_pretty_logging()
     else:
-        logging.getLogger("tornado.access").addHandler(NullHandler())
-        logging.getLogger("tornado.access").propagate = False
+        logging.getLogger('tornado.access').addHandler(NullHandler())
+        logging.getLogger('tornado.access').propagate = False
 
 
 def extract_settings():
@@ -128,15 +126,23 @@ def extract_settings():
             settings[name] = prepend_url(settings[name], options.url_prefix)
 
     if options.auth:
+        oauth2_secret_file = os.environ.get('FLOWER_OAUTH2_SECRET_FILE', '')
+        oauth2_secret = (
+            options.oauth2_secret or os.environ.get('FLOWER_OAUTH2_SECRET')
+            if not oauth2_secret_file
+            else read(oauth2_secret_file)
+        )
         settings['oauth'] = {
             'key': options.oauth2_key or os.environ.get('FLOWER_OAUTH2_KEY'),
-            'secret': options.oauth2_secret or os.environ.get('FLOWER_OAUTH2_SECRET'),
-            'redirect_uri': options.oauth2_redirect_uri or os.environ.get('FLOWER_OAUTH2_REDIRECT_URI'),
+            'secret': oauth2_secret,
+            'redirect_uri': options.oauth2_redirect_uri
+            or os.environ.get('FLOWER_OAUTH2_REDIRECT_URI'),
         }
 
     if options.certfile and options.keyfile:
-        settings['ssl_options'] = dict(certfile=abs_path(options.certfile),
-                                       keyfile=abs_path(options.keyfile))
+        settings['ssl_options'] = dict(
+            certfile=abs_path(options.certfile), keyfile=abs_path(options.keyfile)
+        )
         if options.ca_certs:
             settings['ssl_options']['ca_certs'] = abs_path(options.ca_certs)
 
@@ -146,14 +152,15 @@ def extract_settings():
 
 
 def is_flower_option(arg):
-    name, _, _ = arg.lstrip('-').partition("=")
+    name, _, _ = arg.lstrip('-').partition('=')
     name = name.replace('-', '_')
     return hasattr(options, name)
 
 
 def is_flower_envvar(name):
-    return name.startswith(ENV_VAR_PREFIX) and \
-           name[len(ENV_VAR_PREFIX):].lower() in default_options
+    return (
+        name.startswith(ENV_VAR_PREFIX) and name[len(ENV_VAR_PREFIX) :].lower() in default_options
+    )
 
 
 def print_banner(app, ssl):
@@ -164,18 +171,17 @@ def print_banner(app, ssl):
             prefix_str = ''
 
         logger.info(
-            "Visit me at http%s://%s:%s%s", 's' if ssl else '',
-            options.address or '0.0.0.0', options.port,
-            prefix_str
+            'Visit me at http%s://%s:%s%s',
+            's' if ssl else '',
+            options.address or 'localhost',
+            options.port,
+            prefix_str,
         )
     else:
-        logger.info("Visit me via unix socket file: %s", options.unix_socket)
+        logger.info('Visit me via unix socket file: %s', options.unix_socket)
 
     logger.info('Broker: %s', app.connection().as_uri())
-    logger.info(
-        'Registered tasks: \n%s',
-        pformat(sorted(app.tasks.keys()))
-    )
+    logger.info('Registered tasks: \n%s', pformat(sorted(app.tasks.keys())))
     logger.debug('Settings: %s', pformat(settings))
     if not (options.basic_auth or options.auth):
         logger.warning('Running without authentication')
