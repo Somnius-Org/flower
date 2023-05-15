@@ -4,3 +4,4 @@ prometheus_client>=0.8.0
 humanize
 pytz
 redis<4.0.0
+python-dateutil==2.8.2
